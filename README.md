@@ -1,5 +1,33 @@
 # Vaso-de-Plantas-Inteligente
-O projeto Vaso de Planta Inteligente Automático é um sistema que visa automatizar a irrigação de plantas em vasos utilizando um microcontrolador Arduino e sensores de umidade no solo. 
+O projeto Vaso de Planta Inteligente Automático é um sistema que visa automatizar a irrigação de plantas em vasos utilizando um microcontrolador Arduino e sensores de umidade no solo.
+
+Materiais necessários:
+ O projeto do vaso de planta inteligente automático pode ser construído utilizando os seguintes materiais e métodos:
+ 
+Arduino UNO :É uma placa microcontroladora que pode ser programada para controlar diversos dispositivos, incluindo sensores e atuadores.
+ 
+Cabo jumper para de ligação dos equipamentos: são utilizados para conectar os componentes eletrônicos e garantir o fornecimento de energia elétrica.
+ 
+Placa protoboard: é uma placa de circuito impresso utilizada para montar circuitos eletrônicos experimentais.
+ 
+Sensor de umidade e Placa controladora do sensor de umidade: é um dispositivo que mede a umidade do solo e pode ser utilizado para determinar quando a planta precisa ser irrigada. A placa controladora do sensor de umidade: é uma placa eletrônica que permite conectar o sensor de umidade ao Arduino UNO e processar os dados coletados.
+ 
+Bomba submersa: é uma bomba de água que pode ser submersa no vaso de planta e utilizada para irrigação automática.
+ 
+Relé de energia: é um dispositivo que permite controlar a energia elétrica fornecida à bomba submersa, ligando e desligando a bomba de acordo com as necessidades de irrigação.
+ 
+Fonte de energia USB: É um componente que fornece energia elétrica ao sistema do Arduíno via USB.
+
+Placa ESP01 responsável pela conexão Wifi do arduíno: É um componente que fornecerá a conexão do Arduino com outros aparelhos a internet.
+Para construir o sistema de irrigação inteligente, o primeiro passo é conectar o sensor de umidade à placa controladora e a placa controladora ao Arduino UNO. Em seguida, é preciso conectar a bomba submersa ao relé de energia e o relé de energia ao Arduino UNO. Por fim, é necessário programar o Arduino UNO para monitorar os dados do sensor de umidade e acionar a bomba submersa quando necessário, utilizando o relé de energia.
+
+É importante lembrar que o projeto pode ser adaptado de acordo com as necessidades e preferências do usuário, utilizando diferentes sensores, atuadores e componentes eletrônicos.
+
+
+
+
+
+
 \\\código sem conexão com o WIFI.
 #define rele 3
 #define sensor 2
@@ -27,6 +55,13 @@ void loop()
   }
   delay(10000);
 }
+
+
+
+
+
+
+
 
 \\\código para a conexão com MQTT
 #include <PubSubClient.h>
