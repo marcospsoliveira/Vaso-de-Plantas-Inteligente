@@ -25,130 +25,301 @@ Para construir o sistema de irrigação inteligente, o primeiro passo é conecta
 
 
 
-
-
-
-\\\código sem conexão com o WIFI.
+Código Arduino UNO
 #define rele 3
-#define sensor 2
+#define sensor 1
+#define sensor2 2
+#define botao 8
 bool irrigar = false;
+bool botaoPressionado = false;
+bool sensor2SinalAnterior = false;
+
 void setup()
 {
   pinMode(rele, OUTPUT);
   pinMode(sensor, INPUT);
-  
-  digitalWrite( rele, HIGH);
-}
-void loop() 
-{
-  irrigar = digitalRead(sensor);
-
-  if(irrigar==false)
-  {
-    digitalWrite(rele, HIGH);
-  }
-  else
-  {
-    digitalWrite(rele, LOW);
-    delay(1500);
-    digitalWrite(rele, HIGH);
-  }
-  delay(10000);
-}
-
-
-
-
-
-
-
-
-\\\código para a conexão com MQTT
-#include <PubSubClient.h>
-#include <WiFi.h>
-
-// Dados da rede WiFi
-const char* ssid = "nome_da_rede";
-const char* password = "senha_da_rede";
-
-// Dados do servidor MQTT
-const char* mqttServer = "endereço_do_servidor_mqtt";
-const int mqttPort = 1883;
-const char* mqttUser = "usuário_mqtt";
-const char* mqttPassword = "senha_mqtt";
-
-#define rele 3
-#define sensor 2
-bool irrigar = false;
-
-WiFiClient espClient;
-PubSubClient client(espClient);
-
-void setup() {
-  pinMode(rele, OUTPUT);
-  pinMode(sensor, INPUT);
+  pinMode(sensor2, INPUT);
+  pinMode(botao, INPUT);
   
   digitalWrite(rele, HIGH);
   
-  // Conecta-se à rede WiFi
-  WiFi.begin(ssid, password);
+  Serial.begin(115200); // Inicia a comunicação serial com uma taxa de 115200 bps
+}
+
+void loop() 
+{
+  irrigar = digitalRead(sensor);
+  botaoPressionado = digitalRead(botao);
+  bool sensor2SinalAtual = digitalRead(sensor2);
+
+  if (irrigar == false || sensor2SinalAtual == HIGH)
+  {
+    digitalWrite(rele, HIGH);
+    Serial.println("Irrigar: Desligado");
+  }
+  else if (botaoPressionado == true)
+  {
+    digitalWrite(rele, LOW);
+    Serial.println("Irrigar: Ligado");
+  }
+  else
+  {
+    digitalWrite(rele, HIGH);
+    Serial.println("Irrigar: Desligado");
+  }
   
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-  }
-
-  // Configura o servidor MQTT
-  client.setServer(mqttServer, mqttPort);
-  client.setCallback(callback);
-
-  // Conecta-se ao servidor MQTT
-  while (!client.connected()) {
-    if (client.connect("arduinoClient", mqttUser, mqttPassword)) {
-      client.subscribe("irrigar");
+  if (sensor2SinalAtual != sensor2SinalAnterior)
+  {
+    if (sensor2SinalAtual == HIGH)
+    {
+      digitalWrite(rele, LOW);
+      delay(1800);
+      digitalWrite(rele, HIGH);
+      delay(10000);
+      digitalWrite(rele, LOW);
+      Serial.println("Sensor 2: Sinal detectado");
     }
-    else {
-      delay(1000);
+    else
+    {
+      Serial.println("Sensor 2: Sinal perdido");
+      digitalWrite(rele, HIGH); // Ativa o relé quando o sinal do sensor 2 for perdido
     }
+    delay(1800);
+    sensor2SinalAnterior = sensor2SinalAnterior;
   }
+  
+  delay(800);
+}
+
+
+
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+Código da placa responsável pelo envio dos dados
+
+#include <ESP8266WiFi.h> 
+#include <PubSubClient.h>
+
+#define pinBotao1 12  //D6
+
+//WiFi
+const char* SSID = "Galaxy A30s Marcos 4";                // SSID / nome da rede WiFi que deseja se conectar
+const char* PASSWORD = "1234567890";   // Senha da rede WiFi que deseja se conectar
+WiFiClient wifiClient;                        
+ 
+//MQTT Server
+const char* BROKER_MQTT = "mqtt.eclipseprojects.io"; //URL do broker MQTT que se deseja utilizar
+int BROKER_PORT = 1883;                      // Porta do Broker MQTT
+
+#define ID_MQTT  "MARCOSESPD0A2E0"            //Informe um ID unico e seu. Caso sejam usados IDs repetidos a ultima conexão irá sobrepor a anterior. 
+#define TOPIC_PUBLISH "MARCOSESP2D0A2E0Botao1"    //Informe um Tópico único. Caso sejam usados tópicos em duplicidade, o último irá eliminar o anterior.
+PubSubClient MQTT(wifiClient);        // Instancia o Cliente MQTT passando o objeto espClient
+
+//Declaração das Funções
+void mantemConexoes();  //Garante que as conexoes com WiFi e MQTT Broker se mantenham ativas
+void conectaWiFi();     //Faz conexão com WiFi
+void conectaMQTT();     //Faz conexão com Broker MQTT
+void enviaValores();     //
+
+void setup() {
+  pinMode(pinBotao1, INPUT_PULLUP);         
+
+  Serial.begin(115200);
+
+  conectaWiFi();
+  MQTT.setServer(BROKER_MQTT, BROKER_PORT);   
 }
 
 void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
-
-  irrigar = digitalRead(sensor);
-
-  if (irrigar == false) {
-    digitalWrite(rele, HIGH);
-  }
-  else {
-    digitalWrite(rele, LOW);
-    delay(1500);
-    digitalWrite(rele, HIGH);
-  }
-  delay(10000);
+  mantemConexoes();
+  enviaValores();
+  MQTT.loop();
 }
 
-void callback(char* topic, byte* payload, unsigned int length) {
-  // Lida com mensagens recebidas pelo tópico "irrigar"
-  if (strcmp(topic, "irrigar") == 0) {
-    if (payload[0] == '1') {
-      digitalWrite(rele, LOW);
-      delay(1500);
-      digitalWrite(rele, HIGH);
+void mantemConexoes() {
+    if (!MQTT.connected()) {
+       conectaMQTT(); 
     }
-  }
+    
+    conectaWiFi(); //se não há conexão com o WiFI, a conexão é refeita
 }
 
-void reconnect() {
-  // Reconecta-se ao servidor MQTT
-  while (!client.connected()) {
-    if (client.connect("arduinoClient", mqttUser, mqttPassword)) {
-      client.subscribe("irrigar");
+void conectaWiFi() {
+
+  if (WiFi.status() == WL_CONNECTED) {
+     return;
+  }
+        
+  Serial.print("Conectando-se na rede: ");
+  Serial.print(SSID);
+  Serial.println("  Aguarde!");
+
+  WiFi.begin(SSID, PASSWORD); // Conecta na rede WI-FI  
+  while (WiFi.status() != WL_CONNECTED) {
+      delay(100);
+      Serial.print(".");
+  }
+  
+  Serial.println();
+  Serial.print("Conectado com sucesso, na rede: ");
+  Serial.print(SSID);  
+  Serial.print("  IP obtido: ");
+  Serial.println(WiFi.localIP()); 
+}
+
+void conectaMQTT() { 
+    while (!MQTT.connected()) {
+        Serial.print("Conectando ao Broker MQTT: ");
+        Serial.println(BROKER_MQTT);
+        if (MQTT.connect(ID_MQTT)) {
+            Serial.println("Conectado ao Broker com sucesso!");
+        } 
+        else {
+            Serial.println("Noo foi possivel se conectar ao broker.");
+            Serial.println("Nova tentatica de conexao em 10s");
+            delay(10000);
+        }
     }
-    else {
-      delay(1000);
+}
+
+void enviaValores() {
+static bool estadoBotao1 = HIGH;
+static bool estadoBotao1Ant = HIGH;
+static unsigned long debounceBotao1;
+
+  estadoBotao1 = digitalRead(pinBotao1);
+  if (  (millis() - debounceBotao1) > 30 ) {  //Elimina efeito Bouncing
+     if (!estadoBotao1 && estadoBotao1Ant) {
+
+        //Botao Apertado     
+        MQTT.publish(TOPIC_PUBLISH, "1");
+        Serial.println("Botao1 APERTADO. Payload enviado.");
+        
+        debounceBotao1 = millis();
+     } else if (estadoBotao1 && !estadoBotao1Ant) {
+
+        //Botao Solto
+        MQTT.publish(TOPIC_PUBLISH, "0");
+        Serial.println("Botao1 SOLTO. Payload enviado.");
+        
+        debounceBotao1 = millis();
+     }
+     
+  }
+  estadoBotao1Ant = estadoBotao1;
+}
+
+
+
+
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+
+Código da placa responsável pelo recebimento dos dados:
+
+  #include <ESP8266WiFi.h> 
+  #include <PubSubClient.h>
+
+  #define pinLED1 12  //D6
+
+  //WiFi
+  const char* SSID = "Galaxy A30s Marcos 4";                // SSID / nome da rede WiFi que deseja se conectar
+  const char* PASSWORD = "1234567890";   // Senha da rede WiFi que deseja se conectar
+  WiFiClient wifiClient;                        
+  
+  //MQTT Server
+  const char* BROKER_MQTT = "mqtt.eclipseprojects.io"; //URL do broker MQTT que se deseja utilizar
+  int BROKER_PORT = 1883;                      // Porta do Broker MQTT
+
+  #define ID_MQTT  "MARCOSESP2D0A2E0"            //Informe um ID unico e seu. Caso sejam usados IDs repetidos a ultima conexão irá sobrepor a anterior. 
+  #define TOPIC_PUBLISH "MARCOSESP2D0A2E0Botao1"    //Informe um Tópico único. Caso sejam usados tópicos em duplicidade, o último irá eliminar o anterior.
+  PubSubClient MQTT(wifiClient);        // Instancia o Cliente MQTT passando o objeto espClient
+
+  //Declaração das Funções
+  void mantemConexoes();  //Garante que as conexoes com WiFi e MQTT Broker se mantenham ativas
+  void conectaWiFi();     //Faz conexão com WiFi
+  void conectaMQTT();     //Faz conexão com Broker MQTT
+  void recebePacote(char* topic, byte* payload, unsigned int length);
+
+  void setup() {
+    pinMode(pinLED1, OUTPUT);         
+
+    Serial.begin(115200);
+
+    conectaWiFi();
+    MQTT.setServer(BROKER_MQTT, BROKER_PORT);   
+    MQTT.setCallback(recebePacote);
+  }
+
+  void loop() {
+    mantemConexoes();
+    MQTT.loop();
+  }
+
+  void mantemConexoes() {
+      if (!MQTT.connected()) {
+        conectaMQTT(); 
+      }
+      
+      conectaWiFi(); //se não há conexão com o WiFI, a conexão é refeita
+  }
+
+  void conectaWiFi() {
+
+    if (WiFi.status() == WL_CONNECTED) {
+      return;
     }
-  }}
+          
+    Serial.print("Conectando-se na rede: ");
+    Serial.print(SSID);
+    Serial.println("  Aguarde!");
+
+    WiFi.begin(SSID, PASSWORD); // Conecta na rede WI-FI  
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(100);
+        Serial.print(".");
+    }
+    
+    Serial.println();
+    Serial.print("Conectado com sucesso, na rede: ");
+    Serial.print(SSID);  
+    Serial.print("  IP obtido: ");
+    Serial.println(WiFi.localIP()); 
+  }
+
+  void conectaMQTT() { 
+      while (!MQTT.connected()) {
+          Serial.print("Conectando ao Broker MQTT: ");
+          Serial.println(BROKER_MQTT);
+          if (MQTT.connect(ID_MQTT)) {
+              Serial.println("Conectado ao Broker com sucesso!");
+          } 
+          else {
+              Serial.println("Noo foi possivel se conectar ao broker.");
+              Serial.println("Nova tentatica de conexao em 10s");
+              delay(10000);
+          }
+      }
+  }
+
+  void recebePacote(char* topic, byte* payload, unsigned int length)
+  {String msg;
+  //obtem a string do payload recebido
+  for(int i = 0; i< length; i++)
+  {
+      char c = (char)payload[i];
+      msg += c;
+    Serial.print("recebido mensagem payload do botão");
+  }
+
+  if (msg == "0"){
+    digitalWrite(pinLED1, LOW);
+  Serial.print("recebido aperto o botão");
+  }
+
+  if (msg == "1"){
+    digitalWrite(pinLED1, HIGH);
+  Serial.print("recebido levantamento do botão");
+  }
+
+  }
